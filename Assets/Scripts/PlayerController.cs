@@ -32,6 +32,7 @@ public class PlayerController : MonoBehaviour {
     private CharacterController cc;
     private GameObject cam;
     private GameObject camArm;
+    private Animator anim;
 
     private Vector3 velocity;
     private Vector3 slideDirection;
@@ -39,6 +40,8 @@ public class PlayerController : MonoBehaviour {
     private bool fastMode;
     private bool slideMode;
     private bool crouchMode;
+    private bool slideAfterJump;
+    private bool upFromJumpSlide;
     private bool groundedLastFrame;
     private bool airJumped;
     private bool wallJumped;
@@ -51,6 +54,7 @@ public class PlayerController : MonoBehaviour {
         cc = GetComponent<CharacterController>();
         cam = GameObject.FindGameObjectWithTag("MainCamera");
         camArm = GameObject.FindGameObjectWithTag("CameraArm");
+        anim = camArm.GetComponent<Animator>();
     }
 
     void Update()
@@ -61,7 +65,8 @@ public class PlayerController : MonoBehaviour {
         float forwardInput = Input.GetAxisRaw("Vertical");
         float strafeInput = Input.GetAxisRaw("Horizontal");
         bool runInput = Input.GetButtonDown("Fire3");
-        bool crouchInput = Input.GetButtonDown("Crouch");
+        bool crouchInput = Input.GetButton("Crouch");
+        bool crouchInputUp = Input.GetButtonUp("Crouch");
         bool jumpInput = Input.GetButtonDown("Jump");
 
         float lookHorizontal = Input.GetAxisRaw("Mouse X");
@@ -73,7 +78,6 @@ public class PlayerController : MonoBehaviour {
             if (crouchMode)
             {
                 playerState = PlayerStates.crouch;
-                
             }
             else
             {
@@ -87,6 +91,7 @@ public class PlayerController : MonoBehaviour {
             {
                 fastMode = !fastMode;
                 crouchMode = false;
+                anim.SetBool("Crouch Mode", crouchMode);
             }
             Debug.Log(fastMode);
             if (slideMode || playerState == PlayerStates.slide || playerState == PlayerStates.crouchWalk)
@@ -95,72 +100,158 @@ public class PlayerController : MonoBehaviour {
                     playerState = PlayerStates.run;
                 fastMode = true;
                 crouchMode = false;
+                anim.SetBool("Crouch Mode", crouchMode);
                 slideMode = false;
+                anim.SetBool("Slide Mode", slideMode);
             }
         }
 
-        if (velocity != Vector3.zero && cc.isGrounded && !slideMode)
+        if (velocity != Vector3.zero && cc.isGrounded)
         {
-            if (fastMode)
-                playerState = PlayerStates.run;
+            if (!slideMode)
+            {
+                if (fastMode)
+                    playerState = PlayerStates.run;
+                else
+                    playerState = PlayerStates.walk;
+            }
             else
-                playerState = PlayerStates.walk;
+            {
+                playerState = PlayerStates.slide;
+            }
+        }
+
+        if (crouchInputUp)
+        {
+            upFromJumpSlide = false;
         }
 
         if (crouchInput)
         {
-            if (playerState == PlayerStates.run)
+            if (slideAfterJump && slideMode && cc.isGrounded)
             {
-                playerState = PlayerStates.slide;
-                fastMode = false;
-                slideMode = true;
-                slideMultiplier = maxSlideMultiplier;
-                slideDirection = velocity.normalized;
-            }
-            else if (playerState == PlayerStates.slide)
-            {
-                if (slideMultiplier > 1)
-                {
-                    playerState = PlayerStates.run;
-                    fastMode = true;
-                }
-                else
-                {
-                    playerState = PlayerStates.walk;
-                    fastMode = false;
-                }
+                playerState = PlayerStates.run;
+                fastMode = true;
                 slideMode = false;
+                slideAfterJump = false;
+                anim.SetBool("Slide Mode", slideMode);
+                upFromJumpSlide = true;
             }
-            else if (cc.isGrounded)
+            else if (!upFromJumpSlide)
             {
-                crouchMode = !crouchMode;
-                ToggleCrouchingCharacterController(crouchMode);
-            }
-            else if (!cc.isGrounded)
-            {
-                if (slideMode)
+                Debug.Log("D");
+                if (velocity.magnitude > 15f)
                 {
+                    if (cc.isGrounded)
+                        playerState = PlayerStates.slide;
+                    if (!slideMode)
+                    {
+                        slideMultiplier = maxSlideMultiplier;
+                        slideDirection = velocity.normalized;
+                    }
+                    slideMode = true;
                     fastMode = false;
-                    crouchMode = false;
-                    slideMode = false;
+                    anim.SetBool("Slide Mode", slideMode);
                 }
                 else
                 {
-                    crouchMode = !crouchMode;
-                    if (crouchMode)
-                        fastMode = false;
+                    crouchMode = true;
+                    anim.SetBool("Crouch Mode", crouchMode);
                 }
             }
+
         }
-        
+        else
+        {
+            if (slideMode)
+            {
+                if (slideMultiplier > 1.2f)
+                {
+                    if (cc.isGrounded && !slideAfterJump)
+                    {
+                        playerState = PlayerStates.run;
+                        fastMode = true;
+                    }
+
+                }
+                else
+                {
+                    if (cc.isGrounded && !slideAfterJump)
+                    {
+                        playerState = PlayerStates.walk;
+                        fastMode = false;
+                    }
+                }
+                if (cc.isGrounded && !slideAfterJump)
+                {
+                    slideMode = false;
+                    anim.SetBool("Slide Mode", slideMode);
+                }
+            }
+            crouchMode = false;
+            anim.SetBool("Crouch Mode", crouchMode);
+        }
+
+        if (slideMode && !cc.isGrounded)
+            slideAfterJump = true;
+
+        if (slideMultiplier < 1.5f)
+            slideAfterJump = false;
+
+        #region Old Crouch Logic
+        //if (crouchInput)
+        //{
+        //    if (velocity.magnitude > 15f)
+        //    {
+        //        if (cc.isGrounded)
+        //            playerState = PlayerStates.slide;
+        //        fastMode = false;
+        //        if (!slideMode)
+        //        {
+        //            slideMultiplier = maxSlideMultiplier;
+        //            slideDirection = velocity.normalized;
+        //        }
+        //        slideMode = true;
+        //    }
+        //    else
+        //    {
+        //        if (cc.isGrounded)
+        //        {
+        //            crouchMode = true;
+        //        }
+        //        if (!cc.isGrounded)
+        //        {
+
+        //        }
+        //    }
+        //    else if (cc.isGrounded)
+        //    {
+        //        crouchMode = true;
+        //    }
+        //    else if (!cc.isGrounded)
+        //    {
+        //        if (slideMode)
+        //        {
+        //            fastMode = false;
+        //            crouchMode = false;
+        //            slideMode = false;
+        //        }
+        //        else
+        //        {
+        //            crouchMode = !crouchMode;
+        //            if (crouchMode)
+        //                fastMode = false;
+        //        }
+        //    }
+        //}
+        #endregion
+
         if (crouchMode && velocity != Vector3.zero && cc.isGrounded)
         {
             playerState = PlayerStates.crouchWalk;
             fastMode = false;
-            crouchMode = true;
-        }
 
-        
+        }
 
         if (slideMode && cc.isGrounded)
         {
@@ -213,6 +304,12 @@ public class PlayerController : MonoBehaviour {
                 wallJumped = true;
                 wallJumpPower = maxWallJumpPower;
             }
+            if (cc.isGrounded && slideMode && slideAfterJump)
+            {
+                //slideMultiplier = maxSlideMultiplier;
+                slideDirection = transform.forward;
+                xzVelocity = slideDirection * speed * slideMultiplier;
+            }
             velocity.y = jumpPower;
         }
 
@@ -260,7 +357,6 @@ public class PlayerController : MonoBehaviour {
         {
             groundedLastFrame = false;
         }
-        Debug.Log(wallJumped);
     }
 
     private void ToggleCrouchingCharacterController(bool crouchMode)

@@ -371,7 +371,7 @@ MonoBehaviour:
   runMultiplier: 1.8
   crouchMultiplier: 0.6
   maxSlideMultiplier: 2.4
-  slideFriction: 0.015
+  slideFriction: 0.01
   lookSpeed: 0.5
   gravity: -0.2
   jumpPower: 10
@@ -760,7 +760,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 343885602}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.5, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 341921487}
@@ -776,7 +776,7 @@ Animator:
   m_GameObject: {fileID: 343885602}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 2f386c9524439384a92d21e1cd486403, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
