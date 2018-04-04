@@ -7,7 +7,9 @@ public class PlayerController : MonoBehaviour {
     [SerializeField]
     private float speed = 10f;
     [SerializeField]
-    private float runMultiplier = 2f;
+    private float maxRunMultiplier = 2f;
+    [SerializeField]
+    private float runAcceleration = 0.02f;
     [SerializeField]
     private float crouchMultiplier = 0.8f;
     [SerializeField]
@@ -36,6 +38,8 @@ public class PlayerController : MonoBehaviour {
 
     private Vector3 velocity;
     private Vector3 slideDirection;
+
+    private float runMultiplier = 1;
     private float slideMultiplier;
     private bool fastMode;
     private bool slideMode;
@@ -86,6 +90,7 @@ public class PlayerController : MonoBehaviour {
             {
                 playerState = PlayerStates.stand;
             }
+            fastMode = false;
         }
 
         if (runInput)
@@ -108,6 +113,16 @@ public class PlayerController : MonoBehaviour {
                 anim.SetBool("Slide Mode", slideMode);
             }
         }
+
+        if (fastMode)
+        {
+            runMultiplier = Mathf.Min(runMultiplier + runAcceleration, maxRunMultiplier);
+        }
+        else
+        {
+            runMultiplier = 1f;
+        }
+
 
         if (velocity != Vector3.zero && cc.isGrounded)
         {
@@ -175,7 +190,6 @@ public class PlayerController : MonoBehaviour {
                         playerState = PlayerStates.run;
                         fastMode = true;
                     }
-
                 }
                 else
                 {
@@ -374,7 +388,7 @@ public class PlayerController : MonoBehaviour {
         airJumped = false;
         if (cc.collisionFlags == CollisionFlags.Sides && !wallJumped)
             wallNormal = hit.normal;
-        if ((cc.collisionFlags & CollisionFlags.Sides) != 0)
+        if ((cc.collisionFlags & CollisionFlags.Sides) != 0 && slideMode)
         {
             slideMode = false;
             anim.SetBool("Slide Mode", slideMode);

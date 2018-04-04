@@ -368,7 +368,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 10
-  runMultiplier: 1.8
+  runMultiplier: 1.65
   crouchMultiplier: 0.6
   maxSlideMultiplier: 2.4
   slideFriction: 0.01
