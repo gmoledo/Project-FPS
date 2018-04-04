@@ -368,13 +368,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 10
-  runMultiplier: 1.65
+  maxRunMultiplier: 1.55
+  runAcceleration: 0.02
   crouchMultiplier: 0.6
-  maxSlideMultiplier: 2.4
-  slideFriction: 0.01
+  maxSlideMultiplier: 1.8
+  slideFriction: 0.007
   lookSpeed: 0.5
-  gravity: -0.2
-  jumpPower: 10
+  gravity: -0.27
+  jumpPower: 11.4
   maxWallJumpPower: 20
   groundCheck: {fileID: 1221949948}
 --- !u!1001 &223240862

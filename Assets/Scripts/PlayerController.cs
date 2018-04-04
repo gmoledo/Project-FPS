@@ -324,10 +324,10 @@ public class PlayerController : MonoBehaviour {
                 wallJumped = true;
                 wallJumpPower = maxWallJumpPower;
             }
-            if (cc.isGrounded && slideMode && slideAfterJump)
+            if (slideMode && slideAfterJump)
             {
                 //slideMultiplier = maxSlideMultiplier;
-                slideDirection = transform.forward;
+                slideDirection = transform.forward * forwardInput + transform.right * strafeInput;
                 xzVelocity = slideDirection * speed * slideMultiplier;
             }
             velocity.y = jumpPower;
