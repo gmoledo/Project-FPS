@@ -62,6 +62,9 @@ public class PlayerController : MonoBehaviour {
         if (Input.GetKeyDown(KeyCode.Escape))
             Application.Quit();
 
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
         float forwardInput = Input.GetAxisRaw("Vertical");
         float strafeInput = Input.GetAxisRaw("Horizontal");
         bool runInput = Input.GetButtonDown("Fire3");
@@ -93,7 +96,7 @@ public class PlayerController : MonoBehaviour {
                 crouchMode = false;
                 anim.SetBool("Crouch Mode", crouchMode);
             }
-            Debug.Log(fastMode);
+
             if (slideMode || playerState == PlayerStates.slide || playerState == PlayerStates.crouchWalk)
             {
                 if (cc.isGrounded)
@@ -125,7 +128,7 @@ public class PlayerController : MonoBehaviour {
         {
             upFromJumpSlide = false;
         }
-
+        Debug.Log(upFromJumpSlide);
         if (crouchInput)
         {
             if (slideAfterJump && slideMode && cc.isGrounded)
@@ -298,7 +301,10 @@ public class PlayerController : MonoBehaviour {
         if(jumpInput && !airJumped && cc.collisionFlags != CollisionFlags.Sides || jumpInput && cc.collisionFlags == CollisionFlags.Sides && !wallJumped)
         {
             if (!cc.isGrounded && cc.collisionFlags != CollisionFlags.Sides)
+            {
                 airJumped = true;
+                wallJumped = false;
+            }
             if (cc.collisionFlags == CollisionFlags.Sides)
             {
                 wallJumped = true;
@@ -351,12 +357,12 @@ public class PlayerController : MonoBehaviour {
             velocity.y = 0;
             groundedLastFrame = true;
             airJumped = false;
-            wallJumped = false;
         }
         else
         {
             groundedLastFrame = false;
         }
+        Debug.Log(playerState);
     }
 
     private void ToggleCrouchingCharacterController(bool crouchMode)
@@ -365,7 +371,15 @@ public class PlayerController : MonoBehaviour {
     }
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
+        airJumped = false;
         if (cc.collisionFlags == CollisionFlags.Sides && !wallJumped)
             wallNormal = hit.normal;
+        if ((cc.collisionFlags & CollisionFlags.Sides) != 0)
+        {
+            slideMode = false;
+            anim.SetBool("Slide Mode", slideMode);
+            fastMode = slideMultiplier > 1.2f;
+            slideAfterJump = false;
+        }
     }
 }
