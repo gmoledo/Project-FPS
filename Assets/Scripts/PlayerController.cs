@@ -27,6 +27,12 @@ public class PlayerController : MonoBehaviour {
 
     [SerializeField]
     private Transform groundCheck;
+    [SerializeField]
+    private Transform bodyCheck;
+    [SerializeField]
+    private Transform headCheck;
+    [SerializeField]
+    private Transform feetCheck;
 
     private enum PlayerStates {stand, walk, run, jump, fall, crouch, crouchWalk, slide, climb, wallRun}
     private PlayerStates playerState = PlayerStates.stand;
@@ -44,6 +50,8 @@ public class PlayerController : MonoBehaviour {
     private bool fastMode;
     private bool slideMode;
     private bool crouchMode;
+    private bool climbMode;
+    private GameObject climbedObject;
     private bool slideAfterJump;
     private bool upFromJumpSlide;
     private bool groundedLastFrame;
@@ -58,7 +66,7 @@ public class PlayerController : MonoBehaviour {
         cc = GetComponent<CharacterController>();
         cam = GameObject.FindGameObjectWithTag("MainCamera");
         camArm = GameObject.FindGameObjectWithTag("CameraArm");
-        anim = camArm.GetComponent<Animator>();
+        anim = GetComponent<Animator>();
     }
 
     void Update()
@@ -143,7 +151,7 @@ public class PlayerController : MonoBehaviour {
         {
             upFromJumpSlide = false;
         }
-        Debug.Log(upFromJumpSlide);
+
         if (crouchInput)
         {
             if (slideAfterJump && slideMode && cc.isGrounded)
@@ -157,7 +165,6 @@ public class PlayerController : MonoBehaviour {
             }
             else if (!upFromJumpSlide)
             {
-                Debug.Log("D");
                 if (velocity.magnitude > 15f)
                 {
                     if (cc.isGrounded)
@@ -215,54 +222,6 @@ public class PlayerController : MonoBehaviour {
         if (slideMultiplier < 1.5f)
             slideAfterJump = false;
 
-        #region Old Crouch Logic
-        //if (crouchInput)
-        //{
-        //    if (velocity.magnitude > 15f)
-        //    {
-        //        if (cc.isGrounded)
-        //            playerState = PlayerStates.slide;
-        //        fastMode = false;
-        //        if (!slideMode)
-        //        {
-        //            slideMultiplier = maxSlideMultiplier;
-        //            slideDirection = velocity.normalized;
-        //        }
-        //        slideMode = true;
-        //    }
-        //    else
-        //    {
-        //        if (cc.isGrounded)
-        //        {
-        //            crouchMode = true;
-        //        }
-        //        if (!cc.isGrounded)
-        //        {
-
-        //        }
-        //    }
-        //    else if (cc.isGrounded)
-        //    {
-        //        crouchMode = true;
-        //    }
-        //    else if (!cc.isGrounded)
-        //    {
-        //        if (slideMode)
-        //        {
-        //            fastMode = false;
-        //            crouchMode = false;
-        //            slideMode = false;
-        //        }
-        //        else
-        //        {
-        //            crouchMode = !crouchMode;
-        //            if (crouchMode)
-        //                fastMode = false;
-        //        }
-        //    }
-        //}
-        #endregion
-
         if (crouchMode && velocity != Vector3.zero && cc.isGrounded)
         {
             playerState = PlayerStates.crouchWalk;
@@ -301,9 +260,9 @@ public class PlayerController : MonoBehaviour {
             camArm.transform.localPosition = new Vector3(0f, 0.7f, 0f);
         }
 
-        RaycastHit hit;
         Vector3 nextPosition = transform.position + xzVelocity * Time.deltaTime;
-        if (Physics.SphereCast(nextPosition, cc.radius, Vector3.down, out hit, transform.position.y-groundCheck.position.y-cc.radius) && groundedLastFrame)
+        RaycastHit emptyHit;
+        if (Physics.SphereCast(nextPosition, cc.radius, Vector3.down, out emptyHit, transform.position.y-groundCheck.position.y-cc.radius) && groundedLastFrame)
         {
             velocity.y = (groundCheck.position.y - transform.position.y) / Time.deltaTime;
         }
@@ -333,6 +292,31 @@ public class PlayerController : MonoBehaviour {
             velocity.y = jumpPower;
         }
 
+        if (climbMode)
+        {
+            Debug.DrawRay(feetCheck.position, -wallNormal, Color.red, 0f);
+            Debug.DrawRay(bodyCheck.position, -wallNormal, Color.blue, 0f);
+
+            RaycastHit hit;
+            bool bodyCast = Physics.BoxCast(transform.position, new Vector3(cc.radius, cc.height, cc.radius), -wallNormal, out hit, Quaternion.identity, 1f);
+            
+            if (bodyCast && hit.collider != null)
+            {
+                if (hit.collider.gameObject.name == climbedObject.name)
+                {
+                    Debug.Log(hit.collider.gameObject);
+                    velocity.y = Mathf.Max(velocity.y, 10f);
+                    xzVelocity = Vector3.zero;
+                }
+
+            }
+            else
+            {
+                climbMode = false;
+                velocity.y = 0;
+            }
+        }
+
         if (wallJumped)
         {
             Debug.Log(xzVelocity);
@@ -341,11 +325,11 @@ public class PlayerController : MonoBehaviour {
             wallJumpPower = Mathf.Max(wallJumpPower - 0.5f, 0);
         }
 
-        if (velocity.y > 0 && !cc.isGrounded)
+        if (velocity.y > 0 && !cc.isGrounded && !climbMode)
         {
             playerState = PlayerStates.jump;
         }
-        if (velocity.y < 0 && !cc.isGrounded)
+        if (velocity.y < 0 && !cc.isGrounded && !climbMode)
         {
             playerState = PlayerStates.fall;
         }
@@ -385,15 +369,40 @@ public class PlayerController : MonoBehaviour {
     }
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
+        if ((cc.collisionFlags & CollisionFlags.Above) != 0)
+        {
+            velocity.y = -3;
+        }
+
         airJumped = false;
-        if (cc.collisionFlags == CollisionFlags.Sides && !wallJumped)
-            wallNormal = hit.normal;
         if ((cc.collisionFlags & CollisionFlags.Sides) != 0 && slideMode)
         {
             slideMode = false;
             anim.SetBool("Slide Mode", slideMode);
             fastMode = slideMultiplier > 1.2f;
             slideAfterJump = false;
+        }
+
+        RaycastHit wallHit;
+        bool bodyCast = Physics.Raycast(transform.position, transform.forward, out wallHit, cc.radius+1f);
+        RaycastHit bodyHit = wallHit;
+        bool headCast = Physics.Raycast(bodyCheck.position, transform.forward, out wallHit, cc.radius+1f);
+
+        Debug.DrawRay(transform.position, transform.forward, Color.red, 0.1f);
+        Debug.DrawRay(bodyCheck.position, transform.forward, Color.yellow, 0.1f);
+        RaycastHit headHit = wallHit;
+        if (bodyCast && !headCast)
+        {
+            Debug.Log(hit.gameObject);
+            Debug.Log(bodyHit.collider.gameObject);
+            climbedObject = bodyHit.collider.gameObject;
+            if (hit.gameObject == bodyHit.collider.gameObject)
+            {
+                Debug.Log("D");
+                wallNormal = hit.normal;
+            }
+            playerState = PlayerStates.climb;
+            climbMode = true;
         }
     }
 }
