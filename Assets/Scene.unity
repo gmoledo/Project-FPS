@@ -1565,6 +1565,10 @@ Prefab:
       propertyPath: jumpPower
       value: 11.25
       objectReference: {fileID: 0}
+    - target: {fileID: 1934368673648532, guid: 75cdf31ddd98696488d37867cf3a856f, type: 2}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: 75cdf31ddd98696488d37867cf3a856f, type: 2}
   m_IsPrefabParent: 0

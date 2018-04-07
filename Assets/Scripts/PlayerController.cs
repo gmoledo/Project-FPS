@@ -36,9 +36,6 @@ public class PlayerController : MonoBehaviour {
     [SerializeField]
     private Transform feetCheck;
 
-    private enum PlayerStates {stand, walk, run, jump, fall, crouch, crouchWalk, slide, climb, wallRun}
-    private PlayerStates playerState = PlayerStates.stand;
-
     private CharacterController cc;
     private GameObject cam;
     private GameObject camArm;
@@ -55,6 +52,7 @@ public class PlayerController : MonoBehaviour {
     private bool crouchMode;
     private bool wallRunMode;
     private GameObject wallRunObject;
+    private GameObject wallJumpObject;
     private bool climbMode;
     private GameObject climbedObject;
     private bool slideAfterJump;
@@ -62,7 +60,9 @@ public class PlayerController : MonoBehaviour {
     private bool groundedLastFrame;
     private bool airJumped;
     private bool wallJumped;
-    private Vector3 wallNormal;
+    private Vector3 wallRunNormal;
+    private Vector3 wallClimbNormal;
+    private Vector3 wallJumpNormal;
     private float wallJumpPower;
 
     private void Awake()
@@ -92,24 +92,7 @@ public class PlayerController : MonoBehaviour {
         float lookHorizontal = Input.GetAxisRaw("Mouse X");
         float lookVertical = Input.GetAxisRaw("Mouse Y");
 
-        // If not moving, change state to stand or crouch depending on crouchMode
-        // and reset fastMode to false
-        if (velocity == Vector3.zero)
-        {
-            if (crouchMode)
-            {
-                playerState = PlayerStates.crouch;
-            }
-            else
-            {
-                playerState = PlayerStates.stand;
-            }
-            fastMode = false;
-        }
-
-        // If run key pressed
-        //  if not sliding, toggle fast mode, set crouchMode to false
-        //  if sliding
+       
         if (runInput)
         {
             if (!slideMode)
@@ -119,10 +102,8 @@ public class PlayerController : MonoBehaviour {
                 anim.SetBool("Crouch Mode", crouchMode);
             }
 
-            if (slideMode || playerState == PlayerStates.crouchWalk)
+            if (slideMode || crouchMode && velocity != Vector3.zero)
             {
-                if (cc.isGrounded)
-                    playerState = PlayerStates.run;
                 fastMode = true;
                 crouchMode = false;
                 anim.SetBool("Crouch Mode", crouchMode);
@@ -131,22 +112,6 @@ public class PlayerController : MonoBehaviour {
             }
         }
 
-
-
-        if (velocity != Vector3.zero && cc.isGrounded)
-        {
-            if (!slideMode)
-            {
-                if (fastMode)
-                    playerState = PlayerStates.run;
-                else
-                    playerState = PlayerStates.walk;
-            }
-            else
-            {
-                playerState = PlayerStates.slide;
-            }
-        }
 
         if (crouchInputUp)
         {
@@ -157,7 +122,6 @@ public class PlayerController : MonoBehaviour {
         {
             if (slideAfterJump && slideMode && cc.isGrounded)
             {
-                playerState = PlayerStates.run;
                 fastMode = true;
                 slideMode = false;
                 slideAfterJump = false;
@@ -168,8 +132,6 @@ public class PlayerController : MonoBehaviour {
             {
                 if (velocity.magnitude > 15f)
                 {
-                    if (cc.isGrounded)
-                        playerState = PlayerStates.slide;
                     if (!slideMode)
                     {
                         slideMultiplier = maxSlideMultiplier;
@@ -195,7 +157,6 @@ public class PlayerController : MonoBehaviour {
                 {
                     if (cc.isGrounded && !slideAfterJump)
                     {
-                        playerState = PlayerStates.run;
                         fastMode = true;
                     }
                 }
@@ -203,7 +164,6 @@ public class PlayerController : MonoBehaviour {
                 {
                     if (cc.isGrounded && !slideAfterJump)
                     {
-                        playerState = PlayerStates.walk;
                         fastMode = false;
                     }
                 }
@@ -225,9 +185,7 @@ public class PlayerController : MonoBehaviour {
 
         if (crouchMode && velocity != Vector3.zero && cc.isGrounded)
         {
-            playerState = PlayerStates.crouchWalk;
             fastMode = false;
-
         }
 
         if (slideMode && cc.isGrounded)
@@ -236,18 +194,18 @@ public class PlayerController : MonoBehaviour {
         }
         
 
-
-        Debug.DrawRay(transform.position, -wallNormal, Color.blue, 2f);
-        RaycastHit wallHit;
         if (wallRunMode)
         {
-            bool wallCast = Physics.Raycast(transform.position, -wallNormal, out wallHit, cc.radius + cc.skinWidth + 0.1f);
+            RaycastHit wallHit;
+            bool wallCast = Physics.Raycast(transform.position, -wallRunNormal, out wallHit, cc.radius + cc.skinWidth + 0.1f);
             if (wallCast)
             {
-                wallNormal = wallHit.normal;
-                float wallRunDirectionX = Mathf.Abs(wallNormal.z) * Mathf.Sign(cam.transform.forward.x);
-                float wallRunDirectionZ = Mathf.Abs(wallNormal.x) * Mathf.Sign(cam.transform.forward.z);
+                wallRunNormal = wallHit.normal;
+                float wallRunDirectionX = Mathf.Abs(wallRunNormal.z) * Mathf.Sign(velocity.x);
+                float wallRunDirectionZ = Mathf.Abs(wallRunNormal.x) * Mathf.Sign(velocity.z);
                 wallRunDirection = new Vector3(wallRunDirectionX, 0, wallRunDirectionZ);
+                if (jumpInput)
+                    wallJumped = true;
             }
             else
             {
@@ -270,12 +228,7 @@ public class PlayerController : MonoBehaviour {
             xzVelocity = (transform.forward * forwardInput + transform.right * strafeInput).normalized * speed;
         }
 
-
-        if (fastMode)
-            runMultiplier = Mathf.Min(runMultiplier + runAcceleration, maxRunMultiplier);
-        else
-            runMultiplier = 1f;
-
+        runMultiplier = fastMode ? Mathf.Min(runMultiplier + runAcceleration, maxRunMultiplier) : 1f;
         if (fastMode)
             xzVelocity *= runMultiplier;
         if (crouchMode)
@@ -284,52 +237,52 @@ public class PlayerController : MonoBehaviour {
             xzVelocity *= slideMultiplier;
 
         Vector3 nextPosition = transform.position + xzVelocity * Time.deltaTime;
-        RaycastHit emptyHit;
-        if (Physics.SphereCast(nextPosition, cc.radius, Vector3.down, out emptyHit, transform.position.y-groundCheck.position.y-cc.radius) && groundedLastFrame)
-        {
+        if (Physics.SphereCast(new Ray(nextPosition, Vector3.down), cc.radius, transform.position.y - groundCheck.position.y - cc.radius) && groundedLastFrame)
             velocity.y = (groundCheck.position.y - transform.position.y) / Time.deltaTime;
-        }
         else if (!cc.isGrounded)
-        {
             velocity.y += gravity;
-        }
 
-        if(jumpInput && !airJumped && cc.collisionFlags != CollisionFlags.Sides || jumpInput && cc.collisionFlags == CollisionFlags.Sides && !wallJumped)
+        if (wallRunMode)
+            velocity.y = Mathf.Max(velocity.y, 0);
+
+        if (jumpInput && (!airJumped && cc.collisionFlags != CollisionFlags.Sides || jumpInput && cc.collisionFlags == CollisionFlags.Sides && !wallJumped))
         {
-            if (!cc.isGrounded && cc.collisionFlags != CollisionFlags.Sides)
+            if (!cc.isGrounded && cc.collisionFlags != CollisionFlags.Sides && !wallRunMode)
             {
                 airJumped = true;
-                wallJumped = false;
+                velocity.y = jumpPower;
             }
-            if (cc.collisionFlags == CollisionFlags.Sides)
+            if ((cc.collisionFlags == CollisionFlags.Sides || wallRunMode) && !wallJumped)
             {
                 wallJumped = true;
                 wallJumpPower = maxWallJumpPower;
+                velocity.y = jumpPower;
             }
             if (slideMode && slideAfterJump)
             {
                 slideDirection = transform.forward * forwardInput + transform.right * strafeInput;
                 xzVelocity = slideDirection * speed * slideMultiplier;
+                velocity.y = jumpPower;
             }
-            velocity.y = jumpPower;
+            if (cc.isGrounded)
+                velocity.y = jumpPower;
         }
 
         if (climbMode)
         {
-            Debug.DrawRay(feetCheck.position, -wallNormal, Color.red, 0f);
-            Debug.DrawRay(bodyCheck.position, -wallNormal, Color.blue, 0f);
+            Debug.DrawRay(feetCheck.position, -wallClimbNormal, Color.red, 0f);
+            Debug.DrawRay(bodyCheck.position, -wallClimbNormal, Color.blue, 0f);
 
             RaycastHit hit;
-            bool bodyCast = Physics.BoxCast(transform.position, new Vector3(cc.radius, cc.height, cc.radius), -wallNormal, out hit, Quaternion.identity, 1f);
+            bool bodyCast = Physics.BoxCast(transform.position, new Vector3(cc.radius, 1, cc.radius), -wallClimbNormal, out hit, Quaternion.identity, 1f);
             
             if (bodyCast && hit.collider != null && climbedObject != null)
             {
-                if (hit.collider.gameObject.name == climbedObject.name)
+                if (hit.collider.gameObject == climbedObject)
                 {
                     velocity.y = Mathf.Max(velocity.y, 10f);
                     xzVelocity = Vector3.zero;
                 }
-
             }
             else
             {
@@ -338,22 +291,12 @@ public class PlayerController : MonoBehaviour {
             }
         }
 
+
+
         if (wallJumped)
         {
-            xzVelocity += wallNormal * wallJumpPower;
+            xzVelocity += wallJumpNormal * wallJumpPower;
             wallJumpPower = Mathf.Max(wallJumpPower - 0.5f, 0);
-        }
-
-        if (wallRunMode)
-            velocity.y = 0;
-
-        if (velocity.y > 0 && !cc.isGrounded && !climbMode)
-        {
-            playerState = PlayerStates.jump;
-        }
-        if (velocity.y <= 0 && !cc.isGrounded && !climbMode)
-        {
-            playerState = PlayerStates.fall;
         }
 
         transform.Rotate(Vector3.up, lookHorizontal * lookSpeed);
@@ -367,16 +310,12 @@ public class PlayerController : MonoBehaviour {
         velocity = new Vector3(xzVelocity.x, velocity.y, xzVelocity.z);
         cc.Move(velocity * Time.deltaTime);
 
-        if (slideMode && cc.isGrounded && !groundedLastFrame)
-        {
-            playerState = PlayerStates.slide;
-        }
-
         if (cc.isGrounded)
         {
             velocity.y = 0;
             groundedLastFrame = true;
             airJumped = false;
+            wallJumped = false;
         }
         else
         {
@@ -390,8 +329,7 @@ public class PlayerController : MonoBehaviour {
         {
             velocity.y = -3;
         }
-
-        airJumped = false;
+        
         if ((cc.collisionFlags & CollisionFlags.Sides) != 0 && slideMode)
         {
             slideMode = false;
@@ -404,15 +342,17 @@ public class PlayerController : MonoBehaviour {
         {
             climbedObject = null;
             wallRunObject = null;
+            wallJumped = false;
         }
-
+        wallJumpNormal = hit.normal;
         RaycastHit wallHit;
         bool bodyCast = Physics.Raycast(bodyCheck.position, transform.forward, out wallHit, cc.radius+1f);
         RaycastHit bodyHit = wallHit;
         bool headCast = Physics.Raycast(headCheck.position, transform.forward, out wallHit, cc.radius+1f);
 
-        Debug.DrawRay(transform.position, transform.forward, Color.red, 0.1f);
-        Debug.DrawRay(bodyCheck.position, transform.forward, Color.yellow, 0.1f);
+        wallClimbNormal = hit.normal;
+        Debug.DrawRay(bodyCheck.position, -wallClimbNormal, Color.red, 0.1f);
+        Debug.DrawRay(headCheck.position, -wallClimbNormal, Color.yellow, 0.1f);
         RaycastHit headHit = wallHit;
         if (bodyCast && !headCast && Mathf.Abs(Vector3.Angle(transform.forward, -hit.normal)) < 60f)
         {
@@ -421,25 +361,31 @@ public class PlayerController : MonoBehaviour {
                 climbedObject = bodyHit.collider.gameObject;
                 if (hit.gameObject == bodyHit.collider.gameObject)
                 {
-                    wallNormal = hit.normal;
+                    wallClimbNormal = hit.normal;
                 }
-                playerState = PlayerStates.climb;
                 climbMode = true;
             }
         }
-        if (cc.collisionFlags == CollisionFlags.Sides && !climbMode && hit.collider.gameObject != wallRunObject
-            && Mathf.Abs(Vector3.Angle(transform.forward, -hit.normal)) > 30f)
-        {
-            playerState = PlayerStates.wallRun;
-            wallNormal = hit.normal;
-            wallRunSpeed = speed * wallRunMultiplier;
-            wallRunMode = true;
-            wallRunObject = hit.collider.gameObject;
-            float wallRunDirectionX = Mathf.Abs(hit.normal.z) * Mathf.Sign(cam.transform.forward.x);
-            float wallRunDirectionZ = Mathf.Abs(hit.normal.x) * Mathf.Sign(cam.transform.forward.z);
 
-            wallRunDirection = new Vector3(wallRunDirectionX, 0, wallRunDirectionZ).normalized ;
-            StartCoroutine(StopWallRunning());
+        wallRunNormal = hit.normal;
+        bool feetCastWall = Physics.Raycast(feetCheck.position, -wallRunNormal, cc.radius + 1f);
+        bool headCastWall = Physics.Raycast(bodyCheck.position, -wallRunNormal, cc.radius + 1f);
+        float approachAngle = Mathf.Abs(Vector3.Angle(velocity, -hit.normal));
+        if (cc.collisionFlags == CollisionFlags.Sides && !climbMode && hit.collider.gameObject != wallRunObject
+            && approachAngle > 30f && approachAngle < 60f)
+        {
+            if (feetCastWall && headCastWall)
+            {
+                wallRunSpeed = speed * wallRunMultiplier;
+                wallRunMode = true;
+                wallRunObject = hit.collider.gameObject;
+                float wallRunDirectionX = Mathf.Abs(hit.normal.z) * Mathf.Sign(velocity.x);
+                float wallRunDirectionZ = Mathf.Abs(hit.normal.x) * Mathf.Sign(velocity.z);
+
+                wallRunDirection = new Vector3(wallRunDirectionX, 0, wallRunDirectionZ).normalized;
+                StartCoroutine(StopWallRunning());
+            }
+
         }
     }
 
