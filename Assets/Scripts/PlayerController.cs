@@ -38,7 +38,6 @@ public class PlayerController : MonoBehaviour {
 
     private CharacterController cc;
     private GameObject cam;
-    private GameObject camArm;
     private Animator anim;
 
     private Vector3 velocity;
@@ -67,10 +66,8 @@ public class PlayerController : MonoBehaviour {
 
     private void Awake()
     {
-        Application.targetFrameRate = 144;
         cc = GetComponent<CharacterController>();
         cam = GameObject.FindGameObjectWithTag("MainCamera");
-        camArm = GameObject.FindGameObjectWithTag("CameraArm");
         anim = GetComponent<Animator>();
     }
 
@@ -201,15 +198,21 @@ public class PlayerController : MonoBehaviour {
             if (wallCast)
             {
                 wallRunNormal = wallHit.normal;
+                wallRunObject = wallHit.collider.gameObject;
                 float wallRunDirectionX = Mathf.Abs(wallRunNormal.z) * Mathf.Sign(velocity.x);
                 float wallRunDirectionZ = Mathf.Abs(wallRunNormal.x) * Mathf.Sign(velocity.z);
                 wallRunDirection = new Vector3(wallRunDirectionX, 0, wallRunDirectionZ);
                 if (jumpInput)
+                {
                     wallJumped = true;
+                    wallRunMode = false;
+                    anim.SetBool("Wall Run Mode", false);
+                }
             }
             else
             {
                 wallRunMode = false;
+                anim.SetBool("Wall Run Mode", false);
             }
         }
             
@@ -325,11 +328,14 @@ public class PlayerController : MonoBehaviour {
     
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
+        // If hits ceiling, push player down
         if ((cc.collisionFlags & CollisionFlags.Above) != 0)
         {
             velocity.y = -3;
         }
         
+        // If player hits wall in slide mode, set sliding status to false
+        // Also, set fast mode true or false depending on current slide multiplier
         if ((cc.collisionFlags & CollisionFlags.Sides) != 0 && slideMode)
         {
             slideMode = false;
@@ -338,22 +344,25 @@ public class PlayerController : MonoBehaviour {
             slideAfterJump = false;
         }
 
+        // If grounded, reset variables;
         if (cc.isGrounded)
         {
             climbedObject = null;
             wallRunObject = null;
             wallJumped = false;
         }
+
+
         wallJumpNormal = hit.normal;
+
+        // WALL CLIMB - Raycasts and hit info
         RaycastHit wallHit;
         bool bodyCast = Physics.Raycast(bodyCheck.position, transform.forward, out wallHit, cc.radius+1f);
         RaycastHit bodyHit = wallHit;
         bool headCast = Physics.Raycast(headCheck.position, transform.forward, out wallHit, cc.radius+1f);
-
-        wallClimbNormal = hit.normal;
-        Debug.DrawRay(bodyCheck.position, -wallClimbNormal, Color.red, 0.1f);
-        Debug.DrawRay(headCheck.position, -wallClimbNormal, Color.yellow, 0.1f);
-        RaycastHit headHit = wallHit;
+        // If body touching, but head not, and player is facing ledge,
+        //      If this surface isn't the same as the already climbed surface,
+        //          Set current climbed object, get normal, and climb it
         if (bodyCast && !headCast && Mathf.Abs(Vector3.Angle(transform.forward, -hit.normal)) < 60f)
         {
             if (bodyHit.collider.gameObject != climbedObject)
@@ -367,17 +376,21 @@ public class PlayerController : MonoBehaviour {
             }
         }
 
-        wallRunNormal = hit.normal;
-        bool feetCastWall = Physics.Raycast(feetCheck.position, -wallRunNormal, cc.radius + 1f);
-        bool headCastWall = Physics.Raycast(bodyCheck.position, -wallRunNormal, cc.radius + 1f);
-        float approachAngle = Mathf.Abs(Vector3.Angle(velocity, -hit.normal));
-        if (cc.collisionFlags == CollisionFlags.Sides && !climbMode && hit.collider.gameObject != wallRunObject
-            && approachAngle > 30f && approachAngle < 60f)
+
+
+        // WALL RUN - Raycasts and angle
+        bool feetCastWall = Physics.Raycast(feetCheck.position, -hit.normal, cc.radius + 1f);
+        bool headCastWall = Physics.Raycast(bodyCheck.position, -hit.normal, cc.radius + 1f);
+        // If touching only wall, but not climbing, and your somewhat facing away from the wall, and havent wallrunned
+        //  If feet and head are both touching, set wallrun speed direction and wall run object
+        if (cc.collisionFlags == CollisionFlags.Sides && !climbMode && hit.collider.gameObject != wallRunObject)
         {
             if (feetCastWall && headCastWall)
             {
+                wallRunNormal = hit.normal;
                 wallRunSpeed = speed * wallRunMultiplier;
                 wallRunMode = true;
+                anim.SetBool("Wall Run Mode", true);
                 wallRunObject = hit.collider.gameObject;
                 float wallRunDirectionX = Mathf.Abs(hit.normal.z) * Mathf.Sign(velocity.x);
                 float wallRunDirectionZ = Mathf.Abs(hit.normal.x) * Mathf.Sign(velocity.z);
@@ -387,6 +400,13 @@ public class PlayerController : MonoBehaviour {
             }
 
         }
+        else if (cc.collisionFlags == CollisionFlags.Sides && !climbMode && wallRunMode)
+        {
+            Debug.Log("DF");
+            wallRunMode = false;
+            anim.SetBool("Wall Run Mode", false);
+            velocity.y = 0;
+        }
     }
 
     IEnumerator StopWallRunning()
@@ -394,5 +414,6 @@ public class PlayerController : MonoBehaviour {
         yield return new WaitForSeconds(1f);
 
         wallRunMode = false;
+        anim.SetBool("Wall Run Mode", false);
     }
 }
