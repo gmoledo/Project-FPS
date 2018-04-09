@@ -1553,7 +1553,7 @@ Prefab:
     - target: {fileID: 114984957795874100, guid: 75cdf31ddd98696488d37867cf3a856f,
         type: 2}
       propertyPath: slideFriction
-      value: 0.007
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 114984957795874100, guid: 75cdf31ddd98696488d37867cf3a856f,
         type: 2}
@@ -3559,7 +3559,7 @@ ParticleSystem:
   moveWithTransform: 0
   moveWithCustomTransform: {fileID: 0}
   scalingMode: 1
-  randomSeed: 1177228751
+  randomSeed: 1313458662
   InitialModule:
     serializedVersion: 3
     enabled: 1
